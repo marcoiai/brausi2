@@ -14,7 +14,7 @@ import shutil
 import subprocess
 
 RESET = "\033[0m"
-CLEAR = "\033[H"
+CLEAR = "\033[2J\033[H"
 ERASE_TO_EOL = "\033[K"
 HIDE_CURSOR = "\033[?25l"
 SHOW_CURSOR = "\033[?25h"
@@ -36,13 +36,20 @@ nav_mode = False
 nav_buffer = ""
 running = True
 chafa_path = None
+renderer_mode = "ansi"
+connection_state = "connecting"
+last_error = ""
 
 
 def render_frame(image_bytes):
+    global renderer_mode
+
     if chafa_path:
         if render_frame_with_chafa(image_bytes):
+            renderer_mode = "chafa"
             return
 
+    renderer_mode = "ansi"
     render_frame_to_ansi(image_bytes)
 
 
@@ -123,11 +130,18 @@ def render_frame_to_ansi(image_bytes):
 
 
 def status_line():
+    status = f"[Carbonyl-Lite/{renderer_mode}] {connection_state}"
+    if last_error:
+        status = f"{status} | {last_error}"
+
     if nav_mode:
-        return f"{RESET}\033[1;33mURL: \033[0m{nav_buffer}{ERASE_TO_EOL}\r\nEnter: go | Esc: cancel{ERASE_TO_EOL}\r\n"
+        return (
+            f"{RESET}\033[1;33mURL: \033[0m{nav_buffer}{ERASE_TO_EOL}\r\n"
+            f"Enter: go | Esc: cancel | {status}{ERASE_TO_EOL}\r\n"
+        )
 
     return (
-        f"{RESET}[Carbonyl-Lite/{renderer_name()}] TAB: URL | Left/Right: History | "
+        f"{RESET}{status} | TAB: URL | Left/Right: History | "
         f"Click terminal image | Type to interact{ERASE_TO_EOL}\r\n"
     )
 
@@ -145,10 +159,6 @@ def render_area():
     target_width = max(10, term_columns - width_padding)
     content_lines = max(1, term_lines - FOOTER_LINES)
     return target_width, content_lines
-
-
-def renderer_name():
-    return "chafa" if chafa_path else "ansi"
 
 
 def browser_size():
@@ -366,11 +376,15 @@ async def send_user_actions(websocket):
 
 
 async def receive_stream():
+    global connection_state, last_error
     uri = os.environ.get("BROWSER_WS_URL", "ws://localhost:3001")
 
     while running:
         try:
+            connection_state = f"connecting {uri}"
+            last_error = ""
             async with websockets.connect(uri) as websocket:
+                connection_state = f"connected {uri}"
                 sender_task = asyncio.create_task(send_user_actions(websocket))
                 try:
                     async for message in websocket:
@@ -378,11 +392,17 @@ async def receive_stream():
                 finally:
                     sender_task.cancel()
         except (websockets.exceptions.ConnectionClosedError, ConnectionRefusedError, OSError):
+            connection_state = f"waiting {uri}"
+            last_error = "no stream"
+            with terminal_lock:
+                sys.stdout.write(f"{CLEAR}{status_line()}")
+                sys.stdout.flush()
             await asyncio.sleep(0.2)
 
 
 if __name__ == "__main__":
     chafa_path = resolve_chafa_path()
+    renderer_mode = "chafa" if chafa_path else "ansi"
     main_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(main_loop)
     input_queue = asyncio.Queue()
@@ -392,6 +412,10 @@ if __name__ == "__main__":
 
     if sys.stdin.isatty():
         threading.Thread(target=input_thread, daemon=True).start()
+
+    with terminal_lock:
+        sys.stdout.write(f"{CLEAR}{status_line()}")
+        sys.stdout.flush()
 
     try:
         main_loop.run_until_complete(receive_stream())

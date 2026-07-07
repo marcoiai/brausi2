@@ -1,4 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 import express from 'express';
 import { WebSocketServer } from 'ws';
@@ -16,14 +18,11 @@ const config = {
     maxBufferedBytes: intEnv('BROWSER_MAX_BUFFERED_BYTES', 2_000_000),
     navigationTimeoutMs: intEnv('BROWSER_NAV_TIMEOUT_MS', 15_000),
     initialUrl: normalizeUrl(process.env.BROWSER_INITIAL_URL ?? 'about:blank'),
+    executablePath: process.env.BROWSER_EXECUTABLE_PATH?.trim() || null,
 };
 
-const userDataDir = mkdtempSync('/private/tmp/brausi2-puppeteer-');
-const browser = await puppeteer.launch({
-    headless: 'new',
-    userDataDir,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-});
+const userDataDir = mkdtempSync(join(tmpdir(), 'brausi2-puppeteer-'));
+const browser = await launchBrowser();
 const page = await browser.newPage();
 await page.setViewport({
     width: config.width,
@@ -289,3 +288,54 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
     void shutdown();
 });
+
+async function launchBrowser() {
+    const launchArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+    ];
+
+    const baseOptions = {
+        userDataDir,
+        args: launchArgs,
+    };
+
+    if (config.executablePath) {
+        baseOptions.executablePath = config.executablePath;
+    }
+
+    try {
+        return await puppeteer.launch({
+            ...baseOptions,
+            headless: 'new',
+        });
+    } catch (firstError) {
+        console.error(`[Engine] Browser launch with headless="new" failed: ${firstError.message}`);
+
+        try {
+            return await puppeteer.launch({
+                ...baseOptions,
+                headless: true,
+            });
+        } catch (fallbackError) {
+            logLaunchDiagnostics(fallbackError);
+            throw fallbackError;
+        }
+    }
+}
+
+function logLaunchDiagnostics(error) {
+    console.error(`[Engine] Browser launch failed on ${process.platform}/${process.arch}.`);
+    console.error(`[Engine] tmpdir=${tmpdir()}`);
+    if (config.executablePath) {
+        console.error(`[Engine] executablePath=${config.executablePath}`);
+    } else {
+        console.error('[Engine] executablePath=puppeteer-default');
+    }
+    console.error(`[Engine] ${error.message}`);
+
+    if (process.platform === 'linux') {
+        console.error('[Engine] Linux hints: install Chrome/Chromium deps, or set BROWSER_EXECUTABLE_PATH to a working Chrome binary.');
+    }
+}
