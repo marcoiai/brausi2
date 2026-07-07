@@ -1,0 +1,14 @@
+{
+	"type": "module",
+	"scripts": {
+		"engine": "node browser2.js",
+		"client": "./.venv/bin/python client.py",
+		"stream": "./stream.sh",
+		"start": "node browser2.js"
+	},
+	"dependencies": {
+		"puppeteer": "^25.3.0",
+		"express": "^5.2.1",
+		"ws": "^8.21.0"
+	}
+}
