@@ -1,3 +1,5 @@
+// Legacy experimental Puppeteer/WebSocket path.
+// Official low-power flow: ./server.sh then ./client.sh
 import puppeteer from 'puppeteer';
 import express from 'express';
 import { WebSocketServer } from 'ws';
@@ -53,4 +55,3 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => clearInterval(frameInterval));
 });
-

@@ -1,10 +1,11 @@
 {
 	"type": "module",
 	"scripts": {
+		"server": "./server.sh",
+		"client": "./client.sh",
+		"stream": "./client.sh",
 		"engine": "node browser2.js",
-		"client": "./.venv/bin/python client.py",
-		"stream": "./stream.sh",
-		"start": "node browser2.js"
+		"start": "./server.sh"
 	},
 	"dependencies": {
 		"puppeteer": "^25.3.0",

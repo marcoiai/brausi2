@@ -1,3 +1,5 @@
+// Legacy experimental Puppeteer/chafa path.
+// Official low-power flow: ./server.sh then ./client.sh
 const puppeteer = require('puppeteer');
 const { execSync } = require('child_process');
 
@@ -105,4 +107,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

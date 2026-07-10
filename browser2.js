@@ -1,3 +1,5 @@
+// Legacy experimental Puppeteer/WebSocket path.
+// Official low-power flow: ./server.sh then ./client.sh
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';

@@ -2,4 +2,5 @@
 set -eu
 
 cd "$(dirname "$0")"
-exec pnpm client "$@"
+echo "[compat] stream.sh -> client.sh"
+exec ./client.sh "$@"
